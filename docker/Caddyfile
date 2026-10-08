@@ -1,0 +1,12 @@
+{
+	auto_https disable_redirects
+	skip_install_trust
+	# IP clients may omit SNI; the container's listener IP differs from the host.
+	default_sni 192.168.5.151
+}
+
+https://192.168.5.151:443 {
+	tls internal
+	log
+	reverse_proxy host.docker.internal:7860
+}

@@ -1,0 +1,4 @@
+# Keep the browser UI and its custom WebRTC component aligned with uv.lock.
+fastrtc==0.0.32
+gradio==5.45.0
+gradio-client==1.13.0
