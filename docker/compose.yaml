@@ -1,0 +1,53 @@
+name: liquid-audio
+
+services:
+  app:
+    container_name: lfm
+    image: ${LIQUID_AUDIO_IMAGE:-liquid-audio-agx:local}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BASE_IMAGE: ${BASE_IMAGE:-nvcr.io/nvidia/l4t-jetpack:r36.4.0}
+        MAX_JOBS: ${MAX_JOBS:-2}
+    platform: linux/arm64
+    runtime: nvidia
+    network_mode: host
+    restart: unless-stopped
+    working_dir: /workspace
+    command: ["python3", "-m", "liquid_audio.demo.chat"]
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      PYTHONPATH: /workspace/src
+      PYTHONUNBUFFERED: "1"
+      GRADIO_SERVER_NAME: "127.0.0.1"
+      GRADIO_SERVER_PORT: "7860"
+      HF_HOME: /workspace/.cache/huggingface
+      GRADIO_TEMP_DIR: /workspace/.cache/gradio
+    volumes:
+      - type: bind
+        source: ${PWD:?Run Compose from the docker directory}/..
+        target: /workspace
+    shm_size: "2gb"
+
+  caddy:
+    image: caddy:2
+    platform: linux/arm64
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+    volumes:
+      - type: bind
+        source: ${PWD}/Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,3 @@
+# Local versions ensure later installs retain the JetPack source builds.
+torch==2.8.0+jetson
+torchaudio==2.8.0+jetson

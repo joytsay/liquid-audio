@@ -1,0 +1,11 @@
+.git
+.agents
+.codex
+.aws
+.venv
+.cache
+**/__pycache__
+**/*.pyc
+docker/.env
+build
+dist

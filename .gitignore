@@ -11,3 +11,7 @@ wheels/
 
 # MacOS
 .DS_Store
+
+# Local container configuration and model downloads
+docker/.env
+.cache/
