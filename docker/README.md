@@ -111,3 +111,57 @@ a TURN relay.
 
 No code, builds, tests, or Docker commands were executed when preparing
 these files.
+
+## Desktop RTX deployment
+
+`compose.rtx.yaml` is a standalone configuration for an x86-64 Linux machine
+with an NVIDIA RTX GPU, including the RTX 3070 Ti. It uses `Dockerfile.rtx`
+with Python 3.12 and the official precompiled PyTorch/torchaudio 2.8.0 CUDA
+12.6 wheels ([PyTorch installation instructions](https://pytorch.org/get-started/previous-versions/#v280)).
+The RTX host needs a compatible NVIDIA driver and
+[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+configured for Docker. GPU access uses
+[Compose device reservations](https://docs.docker.com/compose/how-tos/gpu-support/),
+selecting GPU 0 by default. Set `RTX_GPU_ID` to select another GPU.
+The RTX build uses host networking for Dockerfile `RUN` steps to avoid DNS
+failures in the builder's isolated network. Compose 2.27.1 or newer is
+required for the explicit `network.host` build entitlement. If downloading
+CUDA wheels still reports DNS errors, check resolution on the RTX host with
+`getent hosts download.pytorch.org`; host networking cannot repair a failure
+of the host's own resolver.
+GPU installation prefers PyPI for NVIDIA CUDA dependency wheels and falls
+back to the official PyTorch index for the exact `+cu126` torch/torchaudio
+pins. This avoids the PyTorch index's dependency links to `pypi.nvidia.com`.
+Downloads use a 300-second HTTP timeout, five retries, and two concurrent
+downloads to accommodate large CUDA packages. Completed downloads remain in
+the BuildKit uv cache across failed builds; rebuild normally without
+`--no-cache`.
+
+From `docker/`, create a separate environment file:
+
+```sh
+cp .env.rtx.example .env.rtx
+```
+
+Set `RTX_HTTPS_HOST` in `.env.rtx` to the RTX machine's LAN IP or hostname
+when accessing it remotely. Use `localhost` for a browser on that machine.
+This must match the browser URL; `0.0.0.0` is not a suitable site address.
+Set `HF_TOKEN` if desired, then run:
+
+```sh
+docker compose --env-file .env.rtx -f compose.rtx.yaml up --build -d
+```
+
+Open `https://YOUR_RTX_HOST:7861`. Trust this deployment's Caddy CA in your
+browser to enable microphone access. Export its root certificate with:
+
+```sh
+docker compose --env-file .env.rtx -f compose.rtx.yaml cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-rtx-root.crt
+```
+
+The RTX deployment uses its own Compose project, image, and Caddy volumes.
+It reuses the repository source and persistent model cache. Its ports are
+7860 for Gradio and 7861 for HTTPS, so both deployments cannot run on the
+same host with these default ports. WebRTC still uses host networking for
+the app. GPU wheels, demo dependency layers, and package downloads are cached;
+neither PyTorch nor torchaudio is compiled during the build.

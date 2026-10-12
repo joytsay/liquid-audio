@@ -1,0 +1,46 @@
+# syntax=docker/dockerfile:1
+ARG RTX_BASE_IMAGE=python:3.12-slim-bookworm
+FROM ghcr.io/astral-sh/uv:0.8.13 AS uv
+FROM ${RTX_BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PATH=/opt/venv/bin:$PATH \
+    UV_PYTHON_DOWNLOADS=never \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates ffmpeg libsndfile1 libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=uv /uv /usr/local/bin/uv
+RUN uv venv --python /usr/local/bin/python3 /opt/venv
+COPY docker/rtx-constraints.txt /opt/constraints.txt
+
+ENV UV_HTTP_TIMEOUT=300 \
+    UV_HTTP_RETRIES=5 \
+    UV_CONCURRENT_DOWNLOADS=2
+
+# Official desktop CUDA wheels include the CUDA user-space dependencies.
+# Only the NVIDIA driver is supplied by the host/container runtime.
+# Prefer PyPI for CUDA dependencies; fall back to PyTorch for the +cu126 pins.
+# This avoids wheel links on the PyTorch index pointing to pypi.nvidia.com.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python \
+    --index https://pypi.org/simple \
+    --default-index https://download.pytorch.org/whl/cu126 \
+    --index-strategy unsafe-first-match \
+    --constraint /opt/constraints.txt torch torchaudio
+
+WORKDIR /opt/liquid-audio
+COPY pyproject.toml README.md LICENSE ./
+COPY docker/demo-constraints.txt /opt/demo-constraints.txt
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python --index-url https://pypi.org/simple \
+    --constraint /opt/constraints.txt --constraint /opt/demo-constraints.txt \
+    --requirements pyproject.toml --extra demo
+COPY src ./src
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python --no-deps .
+
+WORKDIR /workspace
+EXPOSE 7860
+CMD ["python3", "-m", "liquid_audio.demo.chat"]

@@ -1,0 +1,11 @@
+{
+	auto_https disable_redirects
+	skip_install_trust
+	default_sni {$RTX_HTTPS_HOST:localhost}
+}
+
+https://{$RTX_HTTPS_HOST:localhost}:443 {
+	tls internal
+	log
+	reverse_proxy host.docker.internal:7860
+}
